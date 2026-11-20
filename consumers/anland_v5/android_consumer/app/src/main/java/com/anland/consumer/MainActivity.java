@@ -59,6 +59,10 @@ public class MainActivity extends Activity
     // System-clipboard bridge; also the target for the native clipboard callbacks.
     private Clipboard clipboard;
     private static final String PREFS_NAME = "anland_settings";
+    static final String KEY_SPEN_MOUSE_ENABLED = "spen_mouse_enabled";
+    static final String KEY_SPEN_RIGHT_CLICK_ENABLED = "spen_right_click_enabled";
+    static final String KEY_SPEN_HOVER_SCROLL_ENABLED = "spen_hover_scroll_enabled";
+    static final String KEY_SPEN_SCROLL_SENSITIVITY = "spen_scroll_sensitivity";
     private int customScreenWidth = 0;
     private int customScreenHeight = 0;
     private int viewWidth = 0;
@@ -123,16 +127,37 @@ public class MainActivity extends Activity
                     frame.flags, frame.buttons, frame.timeMsec);
         }
     });
+    private boolean stylusTipDown;
+    private Boolean spenMouseMode;
+    private final StylusMouseInput stylusMouseInput = new StylusMouseInput(
+            new StylusMouseInput.Sender() {
+                @Override public void move(float x, float y) {
+                    if (mNative != null)
+                        mNative.sendMouseMotion(x, y, 0f, 0f);
+                }
+
+                @Override public void button(int button, boolean pressed) {
+                    if (mNative != null)
+                        mNative.sendMouseButton(button, pressed);
+                }
+
+                @Override public void scroll(int axis, float value) {
+                    if (mNative != null)
+                        mNative.sendMouseScroll(axis, value);
+                }
+            });
     private final InputManager.InputDeviceListener tabletDeviceListener =
             new InputManager.InputDeviceListener() {
                 @Override public void onInputDeviceAdded(int deviceId) { }
 
                 @Override public void onInputDeviceRemoved(int deviceId) {
                     tabletInput.cancelDevice(deviceId, SystemClock.uptimeMillis());
+                    cancelStylusMouseInput();
                 }
 
                 @Override public void onInputDeviceChanged(int deviceId) {
                     tabletInput.cancelDevice(deviceId, SystemClock.uptimeMillis());
+                    cancelStylusMouseInput();
                 }
             };
     private InputManager tabletInputManager;
@@ -340,6 +365,7 @@ public class MainActivity extends Activity
             // The producer connection is gone: every consumer var regresses to 0.
             // The producer resends the current value once it reconnects.
             tabletInput.cancelAll(SystemClock.uptimeMillis());
+            cancelStylusMouseInput();
             resetTabletIdentitySession();
             captureMouseForced = false;
             if (mRoot != null)
@@ -375,6 +401,7 @@ public class MainActivity extends Activity
             softKeyboardChord.clearHeld();
             cancelOverlayTouches();
             tabletInput.cancelAll(SystemClock.uptimeMillis());
+            cancelStylusMouseInput();
             releaseAllMouseButtons();
         }
         if (hasFocus && clipboard != null) {
@@ -506,6 +533,7 @@ public class MainActivity extends Activity
 
     private void stopNativePipeline() {
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         cancelOverlayTouches();
         cancelPendingReconnect();
         if (mNative != null)
@@ -544,6 +572,7 @@ public class MainActivity extends Activity
         ensurePointerPosition();
         applyCameraState();
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         releaseScreenTouches();
         mNative.stop();
         resetTabletIdentitySession();
@@ -2053,6 +2082,7 @@ public class MainActivity extends Activity
         automaticImmersive.cancel();
         lifecycleHandler.removeCallbacks(automaticImmersiveEntry);
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         if (tabletInputManager != null && tabletDeviceListenerRegistered) {
             tabletInputManager.unregisterInputDeviceListener(tabletDeviceListener);
             tabletDeviceListenerRegistered = false;
@@ -2103,6 +2133,7 @@ public class MainActivity extends Activity
         lifecycleHandler.removeCallbacks(automaticImmersiveEntry);
         abandonMediaAudioFocus();
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         if (tabletInputManager != null && tabletDeviceListenerRegistered) {
             tabletInputManager.unregisterInputDeviceListener(tabletDeviceListener);
             tabletDeviceListenerRegistered = false;
@@ -2574,12 +2605,20 @@ public class MainActivity extends Activity
         if (mNative == null || sample == null)
             return;
         float[] nativeCoords = convertToNativeCoords(viewX, viewY);
-        tabletInput.update(new TabletInput.Sample(rawTabletDeviceId(helperDevice),
-                sample.pointerId, sample.toolType, sample.capabilities,
-                nativeCoords[0], nativeCoords[1], sample.pressure,
-                sample.tiltX, sample.tiltY, sample.distance,
-                sample.proximity, sample.tipDown, sample.tipState, false,
-                sample.buttons, sample.timeMsec));
+        pointerX = viewX;
+        pointerY = viewY;
+        stylusTipDown = sample.tipDown;
+        if (isSpenMouseEnabled()) {
+            updateSpenMouse(nativeCoords[0], nativeCoords[1], sample.proximity,
+                    sample.tipDown, sample.buttons != 0);
+        } else {
+            tabletInput.update(new TabletInput.Sample(rawTabletDeviceId(helperDevice),
+                    sample.pointerId, sample.toolType, sample.capabilities,
+                    nativeCoords[0], nativeCoords[1], sample.pressure,
+                    sample.tiltX, sample.tiltY, sample.distance,
+                    sample.proximity, sample.tipDown, sample.tipState, false,
+                    sample.buttons, sample.timeMsec));
+        }
     }
 
     @Override
@@ -2589,6 +2628,7 @@ public class MainActivity extends Activity
         int deviceId = rawTabletDeviceIds[helperDevice];
         if (deviceId != 0)
             tabletInput.cancelDevice(deviceId, timeMsec);
+        cancelStylusMouseInput();
         rawTabletDeviceIds[helperDevice] = 0;
     }
 
@@ -2598,6 +2638,7 @@ public class MainActivity extends Activity
             if (deviceId != 0)
                 tabletInput.cancelDevice(deviceId, timeMsec);
         }
+        cancelStylusMouseInput();
     }
 
     private void resetTabletIdentitySession() {
@@ -2796,6 +2837,7 @@ public class MainActivity extends Activity
         if (touchscreenGrabbed == grabbed)
             return;
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         // The Android contact ids and the helper's slots belong to different
         // streams. End the old stream before accepting any of the new one.
         releaseScreenTouches();
@@ -2857,6 +2899,7 @@ public class MainActivity extends Activity
     @Override
     public void onImmersiveChanged(boolean active) {
         tabletInput.cancelAll(SystemClock.uptimeMillis());
+        cancelStylusMouseInput();
         immersiveActive = active;
         // This is the one place both sources report a session starting or
         // ending, so it is where Gold is told to switch profiles and back.
@@ -3265,17 +3308,125 @@ public class MainActivity extends Activity
         return false;
     }
 
-    /** Convert every pen pointer, including historical samples, without mouse emulation. */
+    /** Convert stylus input to mouse events at the Android boundary. */
     private void handleTabletMotionEvent(MotionEvent event) {
         int action = event.getActionMasked();
-        long eventTime = event.getEventTime();
         if (action == MotionEvent.ACTION_CANCEL) {
-            tabletInput.cancelDevice(event.getDeviceId(), eventTime);
+            if (isSpenMouseEnabled())
+                cancelStylusMouseInput();
+            else
+                tabletInput.cancelDevice(event.getDeviceId(), event.getEventTime());
             return;
         }
         if (!containsTabletPointer(event))
             return;
 
+        if (!isSpenMouseEnabled()) {
+            handleNativeTabletMotionEvent(event);
+            return;
+        }
+
+        int actionIndex = event.getActionIndex();
+        boolean actionPointerIsStylus = actionIndex < event.getPointerCount()
+                && isTabletTool(event.getToolType(actionIndex));
+        if (actionPointerIsStylus) {
+            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)
+                stylusTipDown = true;
+            else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP
+                    || action == MotionEvent.ACTION_HOVER_ENTER
+                    || action == MotionEvent.ACTION_HOVER_MOVE
+                    || action == MotionEvent.ACTION_HOVER_EXIT)
+                stylusTipDown = false;
+        }
+        boolean inProximity = action != MotionEvent.ACTION_HOVER_EXIT;
+        int buttonState = event.getButtonState();
+        if (action == MotionEvent.ACTION_BUTTON_PRESS)
+            buttonState |= event.getActionButton();
+        else if (action == MotionEvent.ACTION_BUTTON_RELEASE)
+            buttonState &= ~event.getActionButton();
+        boolean sideButton = (buttonState & (MotionEvent.BUTTON_STYLUS_PRIMARY
+                | MotionEvent.BUTTON_STYLUS_SECONDARY)) != 0;
+        if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_HOVER_MOVE) {
+            for (int history = 0; history < event.getHistorySize(); history++) {
+                for (int pointer = 0; pointer < event.getPointerCount(); pointer++) {
+                    if (isTabletTool(event.getToolType(pointer)))
+                        sendStylusMouseSample(event, pointer, history, inProximity,
+                                sideButton, stylusTipDown);
+                }
+            }
+        }
+        for (int pointer = 0; pointer < event.getPointerCount(); pointer++) {
+            if (!isTabletTool(event.getToolType(pointer)))
+                continue;
+            boolean pointerTipDown = stylusTipDown;
+            if (pointer == actionIndex && (action == MotionEvent.ACTION_UP
+                    || action == MotionEvent.ACTION_POINTER_UP
+                    || action == MotionEvent.ACTION_HOVER_ENTER
+                    || action == MotionEvent.ACTION_HOVER_MOVE
+                    || action == MotionEvent.ACTION_HOVER_EXIT))
+                pointerTipDown = false;
+            else if (pointer == actionIndex && (action == MotionEvent.ACTION_DOWN
+                    || action == MotionEvent.ACTION_POINTER_DOWN))
+                pointerTipDown = true;
+            else if (event.getPressure(pointer) > 0f)
+                pointerTipDown = true;
+            sendStylusMouseSample(event, pointer, -1, inProximity, sideButton,
+                    pointerTipDown);
+        }
+    }
+
+    private void sendStylusMouseSample(MotionEvent event, int pointer, int history,
+                                       boolean inProximity, boolean sideButton) {
+        sendStylusMouseSample(event, pointer, history, inProximity, sideButton,
+                stylusTipDown);
+    }
+
+    private void sendStylusMouseSample(MotionEvent event, int pointer, int history,
+                                       boolean inProximity, boolean sideButton,
+                                       boolean tipDown) {
+        float x = history < 0 ? event.getX(pointer)
+                : event.getHistoricalX(pointer, history);
+        float y = history < 0 ? event.getY(pointer)
+                : event.getHistoricalY(pointer, history);
+        float[] coords = convertToNativeCoords(x, y);
+        if (history < 0 && Float.isFinite(x) && Float.isFinite(y)) {
+            pointerX = x;
+            pointerY = y;
+            ensurePointerPosition();
+        }
+        updateSpenMouse(coords[0], coords[1], inProximity, tipDown, sideButton);
+    }
+
+    private void updateSpenMouse(float x, float y, boolean inProximity,
+                                 boolean tipDown, boolean sideButton) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        stylusMouseInput.update(x, y, inProximity, tipDown, sideButton,
+                prefs.getBoolean(KEY_SPEN_RIGHT_CLICK_ENABLED, true),
+                prefs.getBoolean(KEY_SPEN_HOVER_SCROLL_ENABLED, true),
+                Math.max(0.1f, Math.min(10f,
+                        prefs.getFloat(KEY_SPEN_SCROLL_SENSITIVITY, 1f))));
+    }
+
+    private boolean isSpenMouseEnabled() {
+        boolean enabled = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(KEY_SPEN_MOUSE_ENABLED, false);
+        if (spenMouseMode != null && spenMouseMode != enabled) {
+            tabletInput.cancelAll(SystemClock.uptimeMillis());
+            cancelStylusMouseInput();
+            resetTabletIdentitySession();
+        }
+        spenMouseMode = enabled;
+        return enabled;
+    }
+
+    private void cancelStylusMouseInput() {
+        stylusMouseInput.cancel();
+        stylusTipDown = false;
+    }
+
+    private void handleNativeTabletMotionEvent(MotionEvent event) {
+        cancelStylusMouseInput();
+        int action = event.getActionMasked();
         int capabilities = tabletCapabilities(event);
         int buttons = tabletButtons(event);
         if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_HOVER_MOVE) {
@@ -3291,7 +3442,7 @@ public class MainActivity extends Activity
         for (int pointer = 0; pointer < event.getPointerCount(); pointer++) {
             if (isTabletTool(event.getToolType(pointer)))
                 sendTabletPointerSample(event, pointer, -1, capabilities,
-                        buttons, action, eventTime);
+                        buttons, action, event.getEventTime());
         }
     }
 

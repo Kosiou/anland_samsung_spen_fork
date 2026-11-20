@@ -107,7 +107,7 @@ public class SettingsActivity extends Activity {
     // Which secondary page is on screen. Back walks up to the parent page;
     // Back from HOME exits the activity.
     private enum Page {
-        HOME, KEYBOARD, TOUCHPAD, CONNECTION, RESOLUTION, GENERAL,
+        HOME, KEYBOARD, TOUCHPAD, SPEN, CONNECTION, RESOLUTION, GENERAL,
         IMMERSIVE, IMMERSIVE_INPUTS
     }
     private Page currentPage = Page.HOME;
@@ -210,6 +210,8 @@ public class SettingsActivity extends Activity {
             R.string.cat_keyboard_subtitle, this::showKeyboardPage);
         addCategoryRow(root, R.string.cat_touchpad_title,
             R.string.cat_touchpad_subtitle, this::showTouchpadPage);
+        addCategoryRow(root, R.string.cat_spen_title,
+            R.string.cat_spen_subtitle, this::showSpenPage);
         addCategoryRow(root, R.string.section_connection,
             R.string.cat_connection_subtitle, this::showConnectionPage);
         addCategoryRow(root, R.string.section_resolution,
@@ -313,6 +315,7 @@ public class SettingsActivity extends Activity {
         switch (page) {
             case KEYBOARD: showKeyboardPage(); break;
             case TOUCHPAD: showTouchpadPage(); break;
+            case SPEN: showSpenPage(); break;
             case CONNECTION: showConnectionPage(); break;
             case RESOLUTION: showResolutionPage(); break;
             case GENERAL: showGeneralPage(); break;
@@ -335,6 +338,13 @@ public class SettingsActivity extends Activity {
         currentPage = Page.TOUCHPAD;
         LinearLayout root = newPage(R.string.cat_touchpad_title);
         buildTouchpadSection(root);
+        setContent(root);
+    }
+
+    private void showSpenPage() {
+        currentPage = Page.SPEN;
+        LinearLayout root = newPage(R.string.cat_spen_title);
+        buildSpenSection(root);
         setContent(root);
     }
 
@@ -1255,6 +1265,81 @@ public class SettingsActivity extends Activity {
         notificationHint.setTextColor(Color.GRAY);
         notificationHint.setPadding(0, dp(4), 0, dp(8));
         root.addView(notificationHint);
+    }
+
+    // ============================================================
+    private void buildSpenSection(LinearLayout root) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        Switch mouseMode = new Switch(this);
+        mouseMode.setText(R.string.spen_mouse_switch);
+        mouseMode.setTextSize(14);
+        mouseMode.setChecked(prefs.getBoolean(MainActivity.KEY_SPEN_MOUSE_ENABLED, false));
+        root.addView(mouseMode);
+
+        TextView modeHint = new TextView(this);
+        modeHint.setText(R.string.spen_mouse_hint);
+        modeHint.setTextSize(12);
+        modeHint.setTextColor(Color.GRAY);
+        modeHint.setPadding(0, dp(4), 0, dp(12));
+        root.addView(modeHint);
+
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        root.addView(options);
+
+        Switch rightClick = new Switch(this);
+        rightClick.setText(R.string.spen_right_click_switch);
+        rightClick.setTextSize(14);
+        rightClick.setChecked(prefs.getBoolean(
+                MainActivity.KEY_SPEN_RIGHT_CLICK_ENABLED, true));
+        options.addView(rightClick);
+        addHint(options, R.string.spen_right_click_hint);
+
+        Switch hoverScroll = new Switch(this);
+        hoverScroll.setText(R.string.spen_hover_scroll_switch);
+        hoverScroll.setTextSize(14);
+        hoverScroll.setChecked(prefs.getBoolean(
+                MainActivity.KEY_SPEN_HOVER_SCROLL_ENABLED, true));
+        options.addView(hoverScroll);
+        addHint(options, R.string.spen_hover_scroll_hint);
+
+        addFloatSlider(options, R.string.spen_scroll_sensitivity_label,
+                R.string.spen_scroll_sensitivity_value,
+                R.string.spen_scroll_sensitivity_hint,
+                MainActivity.KEY_SPEN_SCROLL_SENSITIVITY,
+                0.1f, 10f, 0.1f, 1f);
+
+        boolean enabled = mouseMode.isChecked();
+        options.setEnabled(enabled);
+        setEnabledRecursively(options, enabled);
+        mouseMode.setOnCheckedChangeListener((view, checked) -> {
+            prefs.edit().putBoolean(MainActivity.KEY_SPEN_MOUSE_ENABLED, checked).apply();
+            setEnabledRecursively(options, checked);
+        });
+        rightClick.setOnCheckedChangeListener((view, checked) ->
+                prefs.edit().putBoolean(MainActivity.KEY_SPEN_RIGHT_CLICK_ENABLED,
+                        checked).apply());
+        hoverScroll.setOnCheckedChangeListener((view, checked) ->
+                prefs.edit().putBoolean(MainActivity.KEY_SPEN_HOVER_SCROLL_ENABLED,
+                        checked).apply());
+    }
+
+    private void addHint(LinearLayout root, int textRes) {
+        TextView hint = new TextView(this);
+        hint.setText(textRes);
+        hint.setTextSize(12);
+        hint.setTextColor(Color.GRAY);
+        hint.setPadding(0, dp(4), 0, dp(10));
+        root.addView(hint);
+    }
+
+    private void setEnabledRecursively(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++)
+                setEnabledRecursively(group.getChildAt(i), enabled);
+        }
     }
 
     // ============================================================

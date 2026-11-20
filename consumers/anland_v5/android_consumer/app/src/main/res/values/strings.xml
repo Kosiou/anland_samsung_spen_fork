@@ -15,6 +15,17 @@
     <string name="cat_keyboard_subtitle">Key binding, accessibility, virtual keyboard &amp; HUD controls</string>
     <string name="cat_touchpad_title">Touchpad &amp; Mouse</string>
     <string name="cat_touchpad_subtitle">Touchpad mode, pointer capture &amp; sensitivity</string>
+    <string name="cat_spen_title">S Pen</string>
+    <string name="cat_spen_subtitle">Stylus mouse emulation, side buttons &amp; hover scrolling</string>
+    <string name="spen_mouse_switch">Use S Pen as a mouse</string>
+    <string name="spen_mouse_hint">When enabled, stylus input uses mouse events. When disabled, Anland sends the native tablet input with pressure and tilt.</string>
+    <string name="spen_right_click_switch">Side button + tip simulates right click</string>
+    <string name="spen_right_click_hint">With this off, pressing the tip while holding the side button simulates a left click.</string>
+    <string name="spen_hover_scroll_switch">Side button + hover movement simulates scrolling</string>
+    <string name="spen_hover_scroll_hint">Hold the side button while the pen is hovering and move it to scroll. Vertical movement scrolls vertically and horizontal movement scrolls horizontally.</string>
+    <string name="spen_scroll_sensitivity_label">Hover scroll sensitivity</string>
+    <string name="spen_scroll_sensitivity_value">%.1f×</string>
+    <string name="spen_scroll_sensitivity_hint">Higher values produce more scrolling for the same pen movement.</string>
     <string name="cat_connection_subtitle">Socket, root, mic, camera &amp; audio latency</string>
     <string name="cat_resolution_subtitle">Output resolution &amp; presets</string>
     <string name="cat_general_title">General</string>

@@ -13,6 +13,17 @@
     <string name="cat_keyboard_subtitle">按键绑定、无障碍、虚拟键盘与 HUD 控件</string>
     <string name="cat_touchpad_title">触摸板与鼠标</string>
     <string name="cat_touchpad_subtitle">触摸板模式、指针捕获与灵敏度</string>
+    <string name="cat_spen_title">S Pen 触控笔</string>
+    <string name="cat_spen_subtitle">触控笔鼠标模拟、侧键与悬浮滚动</string>
+    <string name="spen_mouse_switch">将 S Pen 用作鼠标</string>
+    <string name="spen_mouse_hint">开启后，触控笔输入会模拟鼠标。关闭时，Anland 使用原生 tablet 接口发送压感和倾斜数据。</string>
+    <string name="spen_right_click_switch">按住侧键并落笔模拟鼠标右键</string>
+    <string name="spen_right_click_hint">关闭后，按住侧键落笔仍会模拟鼠标左键。</string>
+    <string name="spen_hover_scroll_switch">按住侧键悬浮移动模拟滚轮</string>
+    <string name="spen_hover_scroll_hint">触控笔悬浮时按住侧键并移动即可滚动。上下移动控制垂直滚动，左右移动控制水平滚动。</string>
+    <string name="spen_scroll_sensitivity_label">悬浮滚动灵敏度</string>
+    <string name="spen_scroll_sensitivity_value">%.1f 倍</string>
+    <string name="spen_scroll_sensitivity_hint">数值越高，相同笔移动距离产生的滚动越多。</string>
     <string name="cat_connection_subtitle">套接字、root、麦克风、摄像头与音频延迟</string>
     <string name="cat_resolution_subtitle">输出分辨率与预设</string>
     <string name="cat_general_title">通用</string>
